@@ -71,15 +71,15 @@ class Board:
 
 
 class Game:
-    NO_ROWS = 4
-    NO_COLUMNS = 4
+    NO_ROWS = 6
+    NO_COLUMNS = 6
     CELL_DIM = 75
     LINE_WIDTH = int(CELL_DIM * 0.10)
 
     SCREEN_WIDTH = (NO_COLUMNS * CELL_DIM) + ((NO_COLUMNS - 1) * LINE_WIDTH)
     SCREEN_HEIGHT = (NO_ROWS * CELL_DIM) + ((NO_ROWS - 1) * LINE_WIDTH)
 
-    DEPTH = 3
+    DEPTH = 1
     P_MIN = None
     P_MAX = None
 
@@ -87,7 +87,7 @@ class Game:
         pygame.init()
         self.window = pygame.display.set_mode((self.SCREEN_WIDTH, self.SCREEN_HEIGHT))
         pygame.display.set_caption('four-in-a-line but not really')
-        # pygame.display.set_icon(pygame.image.load('resources/icon.png'))
+        pygame.display.set_icon(pygame.image.load('resources/icon.png'))
 
         # The game always starts with the player X
         self.game_state = GameState.TURN_X
@@ -206,7 +206,8 @@ class Game:
                 self.game_matrix[self.moving_cell_index[0], self.moving_cell_index[1]] = Symbol.Nothing.value
                 self.game_matrix[cell_index[0], cell_index[1]] = Symbol.Zero.value
 
-                self.is_final(cell_index)
+                if self.is_final(cell_index):
+                    self.game_state = GameState.FINAL
 
                 return True
 
@@ -216,7 +217,8 @@ class Game:
                 self.game_matrix[self.moving_cell_index[0], self.moving_cell_index[1]] = Symbol.Nothing.value
                 self.game_matrix[cell_index[0], cell_index[1]] = Symbol.X.value
 
-                self.is_final(cell_index)
+                if self.is_final(cell_index):
+                    self.game_state = GameState.FINAL
 
                 return True
 
@@ -226,7 +228,8 @@ class Game:
 
             self.game_matrix[cell_index[0], cell_index[1]] = symbol_type
             self.clear_possible_moves()
-            self.is_final(cell_index)
+            if self.is_final(cell_index):
+                self.game_state = GameState.FINAL
             return True
 
         # Move a symbol
@@ -477,6 +480,7 @@ class Game:
             print("Player doesn't have any moves, skip turn")
             return False
 
+    # ===== Implementing AI - work in progress =====
     def get_possible_boards(self, player, current_state_matrix):
         """
         Create the possible boards for the current player - used in the searching algorithms
@@ -568,29 +572,6 @@ class State:
 
         return possible_states_list
 
-    def open_line(self, line, current_player_symbol: int):
-        opposite_player_symbol = Game.get_opposite_player(current_player_symbol)
-
-        # verific daca pe linia data am simbolul jucatorului opus -> return 0
-        if opposite_player_symbol in line:
-            return 0
-        return 1
-
-    def open_lines(self, current_player_symbol):
-        return (self.open_line(g.game_matrix[0, 0:4], current_player_symbol)
-                + self.open_line(g.game_matrix[1, 0:4], current_player_symbol)
-                + self.open_line(g.game_matrix[2, 0:4], current_player_symbol)
-                + self.open_line(g.game_matrix[3, 0:4], current_player_symbol)
-
-                + self.open_line(g.game_matrix[0:4, 0], current_player_symbol)
-                + self.open_line(g.game_matrix[0:4, 1], current_player_symbol)
-                + self.open_line(g.game_matrix[0:4, 2], current_player_symbol)
-                + self.open_line(g.game_matrix[0:4, 3], current_player_symbol)
-
-                + self.open_line([g.game_matrix[0, 0], g.game_matrix[1, 1], g.game_matrix[2, 2], g.game_matrix[3, 3]], current_player_symbol)
-
-                + self.open_line([g.game_matrix[0, 3], g.game_matrix[1, 2], g.game_matrix[2, 1], g.game_matrix[3, 0]], current_player_symbol))
-
     def estimate_score(self, depth):
         t_final = self.board.is_board_final()
         print(f"T_FINAL = {t_final}")
@@ -602,7 +583,8 @@ class State:
 
             return -99 + depth
         else:
-            return self.open_lines(Symbol.Zero.value) - self.open_lines(Symbol.X.value)
+            return 1
+            # return self.open_lines(Symbol.Zero.value) - self.open_lines(Symbol.X.value)
 
 
 def min_max(state: State):
@@ -651,6 +633,7 @@ if __name__ == '__main__':
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:  # 1 == left button
 
+                    # ===== Player X Turn =====
                     if g.game_state is GameState.TURN_X:
                         if g.put_symbol(Symbol.X.value, pygame.mouse.get_pos()):
                             if g.game_state is not GameState.FINAL:
@@ -664,27 +647,18 @@ if __name__ == '__main__':
                             else:
                                 print("X is the Winner")
 
+                    # ===== Player Zero Turn =====
                     elif g.game_state is GameState.TURN_ZERO:
-                        # if not g.is_move_available():
-                        #     g.game_state = GameState.TURN_ZERO
-                        #     g.refresh_board()
+                        if g.put_symbol(Symbol.Zero.value, pygame.mouse.get_pos()):
+                            if g.game_state is not GameState.FINAL:
+                                g.game_state = GameState.TURN_X
+                                g.refresh_board()
 
-                        new_state = min_max(State(board=g.board, current_player=Symbol.Zero.value, depth=Game.DEPTH))
-                        print("============================================")
-
-                        print("min_max finished and the current state is:")
-                        print(new_state)
-                        print("============================================")
-
-                        current_board = new_state.chosen_state.board
-                        print("Current board is: ")
-                        print(current_board.game_matrix)
-                        g.set_board(current_board)
-                        if g.game_state is not GameState.FINAL:
-                            g.game_state = GameState.TURN_X
-                            g.refresh_board()
-                        else:
-                            print("Zero is the Winner")
+                                if not g.is_move_available():
+                                    g.game_state = GameState.TURN_ZERO
+                                    g.refresh_board()
+                            else:
+                                print("Zero is the Winner")
 
         # Drawing
         g.draw()
